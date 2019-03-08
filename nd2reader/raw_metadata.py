@@ -46,6 +46,8 @@ class RawMetadata(object):
             "total_images_per_channel": frames_per_channel,
             "channels": self._parse_channels(),
             "pixel_microns": parse_if_not_none(self.image_calibration, self._parse_calibration),
+            "x_data": self.x_data[::len(self._parse_z_levels())],
+            "y_data":self.y_data[::len(self._parse_z_levels())]
         }
 
         self._set_default_if_not_empty('fields_of_view')
