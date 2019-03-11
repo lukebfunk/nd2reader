@@ -79,3 +79,9 @@ If you get an unhandled exception, please paste the entire stack trace into the 
 PIMS modified version by Ruben Verweij.
 
 Original version by Jim Rybarski. Support for the development of this package was partially provided by the [Finkelstein Laboratory](http://finkelsteinlab.org/).
+
+### To-do
+
+ [ ] make editable setting for what metadata to extract from nd2
+ [ ] x & y metadata extraction robust to different fov shapes
+ [ ] only propagate metadata unique to slice when slicing
