@@ -82,6 +82,6 @@ Original version by Jim Rybarski. Support for the development of this package wa
 
 ### To-do
 
- [ ] make editable setting for what metadata to extract from nd2
- [ ] x & y metadata extraction robust to different fov shapes
- [ ] only propagate metadata unique to slice when slicing
+- [ ] make editable setting for what metadata to extract from nd2
+- [ ] x & y metadata extraction robust to different fov shapes
+- [ ] only propagate metadata unique to slice when slicing
