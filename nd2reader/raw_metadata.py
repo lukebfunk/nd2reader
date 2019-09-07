@@ -163,7 +163,10 @@ class RawMetadata(object):
         Returns:
             list: the z levels, just a sequence from 0 to n.
         """
-        return self._parse_dimension(r""".*?Z\((\d+)\).*?""")
+        z_levels = self._parse_dimension(r""".*?Z\((\d+)\).*?""")
+        if len(z_levels)==0:
+            z_levels = [0]
+        return z_levels
 
     def _parse_dimension_text(self):
         """While there are metadata values that represent a lot of what we want to capture, they seem to be unreliable.
