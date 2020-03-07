@@ -49,7 +49,7 @@ class RawMetadata(object):
             "x_data": self.x_data[::len(self._parse_z_levels())],
             "y_data":self.y_data[::len(self._parse_z_levels())],
             "z_data":[self.z_data[(fov*len(self._parse_z_levels())):((fov+1)*len(self._parse_z_levels()))] for fov in self._parse_fields_of_view()],
-            "pfs_offset":[self.pfs_offset[0]]
+            "pfs_offset":self.pfs_offset[::len(self._parse_z_levels())]
                                         
         }
 
