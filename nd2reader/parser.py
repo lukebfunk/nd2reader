@@ -109,7 +109,10 @@ class Parser(object):
         means/etc.)
 
         """
-        return np.float64
+
+        ##Luke: fix this to read dtype from metadata
+        # return np.float64
+        return np.uint16
 
     def _check_version_supported(self):
         """Checks if the ND2 file version is supported by this reader.
