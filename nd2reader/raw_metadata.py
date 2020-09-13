@@ -48,7 +48,7 @@ class RawMetadata(object):
             "pixel_microns": parse_if_not_none(self.image_calibration, self._parse_calibration),
             "x_data": self.x_data[::len(self._parse_z_levels())],
             "y_data":self.y_data[::len(self._parse_z_levels())],
-            "z_data":[self.z_data[(fov*len(self._parse_z_levels())):((fov+1)*len(self._parse_z_levels()))] for fov in self._parse_fields_of_view()],
+            "z_data":[self.z_data[(frame*len(self._parse_z_levels())):((frame+1)*len(self._parse_z_levels()))] for frame in self._parse_frames()],
             "pfs_offset":self.pfs_offset[::len(self._parse_z_levels())]
                                         
         }
