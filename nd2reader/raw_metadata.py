@@ -169,12 +169,7 @@ class RawMetadata(object):
         Returns:
             list: the z levels, just a sequence from 0 to n.
         """
-# <<<<<<< HEAD
-#         z_levels = self._parse_dimension(r""".*?Z\((\d+)\).*?""")
-#         if len(z_levels)==0:
-#             z_levels = [0]
-#         return z_levels
-# =======
+
         # get the dimension text to check if we should apply the fallback or not
         dimension_text = self._parse_dimension_text()
 
@@ -192,7 +187,7 @@ class RawMetadata(object):
 
         if z_levels is None:
             # No z coordinates, return empty list
-            return []
+            return [0]
 
         warnings.warn("Z-levels details missing in metadata. Using Z-coordinates instead.")
         return range(len(z_levels))
@@ -204,7 +199,6 @@ class RawMetadata(object):
             list: the z coordinates in micron
         """
         return self.z_data.tolist()
-# >>>>>>> upstream/master
 
     def _parse_dimension_text(self):
         """While there are metadata values that represent a lot of what we want to capture, they seem to be unreliable.
