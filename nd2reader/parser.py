@@ -3,11 +3,12 @@ import struct
 
 import array
 import six
+import warnings
 from pims.base_frames import Frame
 import numpy as np
 
 from nd2reader.common import get_version, read_chunk
-from nd2reader.exceptions import InvalidVersionError, NoImageError
+from nd2reader.exceptions import InvalidVersionError
 from nd2reader.label_map import LabelMap
 from nd2reader.raw_metadata import RawMetadata
 
@@ -72,12 +73,12 @@ class Parser(object):
         try:
             timestamp, image = self._get_raw_image_data(image_group_number, channel_offset, self.metadata["height"],
                                                         self.metadata["width"])
-        except (TypeError, NoImageError):
+        except (TypeError):
             return Frame([], frame_no=frame_number, metadata=self._get_frame_metadata())
         else:
-            return image
+            return Frame(image, frame_no=frame_number, metadata=self._get_frame_metadata())
 
-    def get_image_by_attributes(self, frame_number, field_of_view, channel_name, z_level, height, width):
+    def get_image_by_attributes(self, frame_number, field_of_view, channel, z_level, height, width):
         """Gets an image based on its attributes alone
 
         Args:
@@ -92,14 +93,19 @@ class Parser(object):
             Frame: the requested image
 
         """
+        frame_number = 0 if frame_number is None else frame_number
+        field_of_view = 0 if field_of_view is None else field_of_view
+        channel = 0 if channel is None else channel
+        z_level = 0 if z_level is None else z_level
+
         image_group_number = self._calculate_image_group_number(frame_number, field_of_view, z_level)
         try:
-            timestamp, raw_image_data = self._get_raw_image_data(image_group_number, self._channel_offset[channel_name],
+            timestamp, raw_image_data = self._get_raw_image_data(image_group_number, channel,
                                                                  height, width)
-        except (TypeError, NoImageError):
+        except (TypeError):
             return Frame([], frame_no=frame_number, metadata=self._get_frame_metadata())
         else:
-            return raw_image_data
+            return Frame(raw_image_data, frame_no=frame_number, metadata=self._get_frame_metadata())
 
     @staticmethod
     def get_dtype_from_metadata():
@@ -138,6 +144,7 @@ class Parser(object):
         self._label_map = self._build_label_map()
         self._raw_metadata = RawMetadata(self._fh, self._label_map)
         self.metadata = self._raw_metadata.__dict__
+        self.acquisition_times = self._raw_metadata.acquisition_times
 
     def _build_label_map(self):
         """
@@ -279,9 +286,14 @@ class Parser(object):
         # other cycle to reduce phototoxicity, but NIS Elements still allocated memory as if we were going to take
         # them every cycle.
         if np.any(image_data):
-            return timestamp, Frame(image_data, metadata=self._get_frame_metadata())
+            return timestamp, image_data
 
-        raise NoImageError
+        # If a blank "gap" image is encountered, generate an array of corresponding height and width to avoid 
+        # errors with ND2-files with missing frames. Array is filled with nan to reflect that data is missing. 
+        else:
+            empty_frame = np.full((height, width), np.nan)
+            warnings.warn('ND2 file contains gap frames which are represented by np.nan-filled arrays; to convert to zeros use e.g. np.nan_to_num(array)')
+            return timestamp, image_data
 
     def _get_frame_metadata(self):
         """Get the metadata for one frame

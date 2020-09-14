@@ -2,6 +2,7 @@ import re
 import xmltodict
 import six
 import numpy as np
+import warnings
 
 from nd2reader.common import read_chunk, read_array, read_metadata, parse_date, get_from_dict_if_exists
 from nd2reader.common_raw_metadata import parse_dimension_text_line, parse_if_not_none, parse_roi_shape, parse_roi_type, get_loops_from_data, determine_sampling_interval
@@ -43,6 +44,7 @@ class RawMetadata(object):
             "fields_of_view": self._parse_fields_of_view(),
             "frames": self._parse_frames(),
             "z_levels": self._parse_z_levels(),
+            "z_coordinates": parse_if_not_none(self.z_data, self._parse_z_coordinates),
             "total_images_per_channel": frames_per_channel,
             "channels": self._parse_channels(),
             "pixel_microns": parse_if_not_none(self.image_calibration, self._parse_calibration),
@@ -50,7 +52,6 @@ class RawMetadata(object):
             "y_data":self.y_data[::len(self._parse_z_levels())],
             "z_data":[self.z_data[(frame*len(self._parse_z_levels())):((frame+1)*len(self._parse_z_levels()))] for frame in self._parse_frames()],
             "pfs_offset":self.pfs_offset[::len(self._parse_z_levels())]
-                                        
         }
 
         self._set_default_if_not_empty('fields_of_view')
@@ -59,6 +60,7 @@ class RawMetadata(object):
 
         self._parse_roi_metadata()
         self._parse_experiment_metadata()
+        self._parse_events()
 
         return self._metadata_parsed
 
@@ -160,13 +162,49 @@ class RawMetadata(object):
     def _parse_z_levels(self):
         """The different levels in the Z-plane.
 
+        If they are not available from the _parse_dimension function AND there
+        is NO 'Dimensions: ' textinfo item in the file, we return a range with
+        the length of z_coordinates if available, otherwise an empty list.
+
         Returns:
             list: the z levels, just a sequence from 0 to n.
         """
-        z_levels = self._parse_dimension(r""".*?Z\((\d+)\).*?""")
-        if len(z_levels)==0:
-            z_levels = [0]
-        return z_levels
+# <<<<<<< HEAD
+#         z_levels = self._parse_dimension(r""".*?Z\((\d+)\).*?""")
+#         if len(z_levels)==0:
+#             z_levels = [0]
+#         return z_levels
+# =======
+        # get the dimension text to check if we should apply the fallback or not
+        dimension_text = self._parse_dimension_text()
+
+        # this returns range(len(z_levels))
+        z_levels = self._parse_dimension(r""".*?Z\((\d+)\).*?""", dimension_text)
+
+        if len(z_levels) > 0 or len(dimension_text) > 0:
+            # Either we have found the z_levels (first condition) so return, or
+            # don't fallback, because Z is apparently not in Dimensions, so
+            # there should be no z_levels
+            return z_levels
+
+        # Not available from dimension, get from z_coordinates
+        z_levels = parse_if_not_none(self.z_data, self._parse_z_coordinates)
+
+        if z_levels is None:
+            # No z coordinates, return empty list
+            return []
+
+        warnings.warn("Z-levels details missing in metadata. Using Z-coordinates instead.")
+        return range(len(z_levels))
+
+    def _parse_z_coordinates(self):
+        """The coordinate in micron for all z planes.
+
+        Returns:
+            list: the z coordinates in micron
+        """
+        return self.z_data.tolist()
+# >>>>>>> upstream/master
 
     def _parse_dimension_text(self):
         """While there are metadata values that represent a lot of what we want to capture, they seem to be unreliable.
@@ -190,17 +228,20 @@ class RawMetadata(object):
 
         return dimension_text
 
-    def _parse_dimension(self, pattern):
-        dimension_text = self._parse_dimension_text()
+    def _parse_dimension(self, pattern, dimension_text=None):
+        dimension_text = self._parse_dimension_text() if dimension_text is None else dimension_text
         if dimension_text is None:
             return []
+
         if six.PY3:
             dimension_text = dimension_text.decode("utf8")
+
         match = re.match(pattern, dimension_text)
         if not match:
             return []
+
         count = int(match.group(1))
-        return list(range(count))
+        return range(count)
 
     def _parse_total_images_per_channel(self):
         """The total number of images per channel.
@@ -381,6 +422,60 @@ class RawMetadata(object):
 
         return duration
 
+    def _parse_events(self):
+        """Extract events
+
+        """
+
+        # list of event names manually extracted from an ND2 file that contains all manually
+        # insertable events from NIS-Elements software (4.60.00 (Build 1171) Patch 02)
+        event_names = {
+            1: 'Autofocus',
+            7: 'Command Executed',
+            9: 'Experiment Paused',
+            10: 'Experiment Resumed',
+            11: 'Experiment Stopped by User',
+            13: 'Next Phase Moved by User',
+            14: 'Experiment Paused for Refocusing',
+            16: 'External Stimulation',
+            33: 'User 1',
+            34: 'User 2',
+            35: 'User 3',
+            36: 'User 4',
+            37: 'User 5',
+            38: 'User 6',
+            39: 'User 7',
+            40: 'User 8',
+            44: 'No Acquisition Phase Start',
+            45: 'No Acquisition Phase End',
+            46: 'Hardware Error',
+            47: 'N-STORM',
+            48: 'Incubation Info',
+            49: 'Incubation Error'
+        }
+
+        self._metadata_parsed['events'] = []
+
+        events = read_metadata(read_chunk(self._fh, self._label_map.image_events), 1)
+
+        if events is None or six.b('RLxExperimentRecord') not in events:
+            return
+
+        events = events[six.b('RLxExperimentRecord')][six.b('pEvents')]
+
+        if len(events) == 0:
+            return
+
+        for event in events[six.b('')]:
+            event_info = {
+                'index': event[six.b('I')],
+                'time': event[six.b('T')],
+                'type': event[six.b('M')],
+            }
+            if event_info['type'] in event_names.keys():
+                event_info['name'] = event_names[event_info['type']]
+
+            self._metadata_parsed['events'].append(event_info)
 
     @property
     def image_text_info(self):
@@ -445,7 +540,12 @@ class RawMetadata(object):
         Returns:
             dict: z_data
         """
-        return read_array(self._fh, 'double', self._label_map.z_data)
+        try:
+            return read_array(self._fh, 'double', self._label_map.z_data)
+        except ValueError:
+            # Depending on the file format/exact settings, this value is
+            # sometimes saved as float instead of double
+            return read_array(self._fh, 'float', self._label_map.z_data)
 
     @property
     def roi_metadata(self):
@@ -562,3 +662,15 @@ class RawMetadata(object):
         """
         if self._label_map.image_metadata:
             return read_metadata(read_chunk(self._fh, self._label_map.image_metadata), 1)
+
+    @property
+    def image_events(self):
+        """Image events
+
+        Returns:
+            dict: Image events
+        """
+        if self._label_map.image_metadata:
+            for event in self._metadata_parsed["events"]:
+                yield event
+

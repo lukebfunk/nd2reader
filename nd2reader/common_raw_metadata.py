@@ -40,15 +40,25 @@ def parse_roi_type(type_no):
 
 
 def get_loops_from_data(loop_data):
-    loops = [loop_data]
-    if six.b('uiPeriodCount') in loop_data and loop_data[six.b('uiPeriodCount')] > 0:
-        # special ND experiment
-        if six.b('pPeriod') not in loop_data:
-            return []
+    # special ND experiment
+    if six.b('pPeriod') not in loop_data:
+        return []
 
-        # take the first dictionary element, it contains all loop data
-        loops = loop_data[six.b('pPeriod')][list(loop_data[six.b('pPeriod')].keys())[0]]
-    return loops
+    if six.b('uiPeriodCount') in loop_data and loop_data[six.b('uiPeriodCount')] > 0:
+        loops = []
+        for i, period in enumerate(loop_data[six.b('pPeriod')]):
+            # exclude invalid periods
+            if six.b('pPeriodValid') in loop_data:
+                try:
+                    if loop_data[six.b('pPeriodValid')][i] == 1:
+                        loops.append(loop_data[six.b('pPeriod')][period])
+                except IndexError:
+                    continue
+            else:
+                # we can't be sure, append all
+                loops.append(loop_data[six.b('pPeriod')][period])
+
+    return [loop_data]
 
 
 def guess_sampling_from_loops(duration, loop):
